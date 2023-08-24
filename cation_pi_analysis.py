@@ -10,11 +10,10 @@
 
 import numpy as np
 import MDAnalysis as mda
-import matplotlib.pyplot as plt
 from MDAnalysis.analysis.base import (AnalysisBase, AnalysisFromFunction, analysis_class)
 from MDAnalysis.analysis import distances
 from MDAnalysis.analysis.base import AnalysisBase, Results
-from MDAnalysis.lib.distances import capped_distance, calc_angles
+from MDAnalysis.lib.distances import capped_distance
 import logging
 import warnings
 from MDAnalysis.lib.correlations import autocorrelation, correct_intermittency
@@ -32,7 +31,8 @@ class CationPiBondAnalysis(AnalysisBase):
                  cations_sel=None,
                  c_p_cutoff=5.0,
                  update_selections=True):
-        """Set up atom selections and geometric criteria for finding cation pi
+        """
+        Set up atom selections and geometric criteria for finding cation pi
         bonds in a Universe.
         
         Cation pi bond selections with 'pi_sel' and 'cations_sel' may be achieved
@@ -45,12 +45,10 @@ class CationPiBondAnalysis(AnalysisBase):
         pi_sel : str
             Selection string for the atoms participating in the quadropole (pi-system).
         cations_sel : str
-            Selection string for the atom that represents the cation involved in cation pi
+            Selection string for the atom that represents the cation(s) involved in cation pi
             interactions.
         c_p_cutoff : float
-            Distance cutoff used for finding cation pi pairs.
-        plane_p_c_angle_cutoff : float
-            Aromatic plane-barycenter-cation angle cutoff for cation pi pairs in degrees.
+            Distance cutoff between ring positional centers and cation used for finding cation pi pairs.
         """
         
         self.u = universe # Initialize self.u as the input universe. 
@@ -68,31 +66,36 @@ class CationPiBondAnalysis(AnalysisBase):
                 warnings.warn(msg.format(sel))
         
         self.c_p_cutoff = c_p_cutoff # Initialize self.c_p_cutoff as input c_p_cutoff
-        self.update_selections = update_selections # Initialize self.update_selections as update_selections
-        self.results = Results() # Initialize self.results as Results()
+        self.update_selections = update_selections # Initialize self.update_selections as input update_selections
+        self.results = Results() # Initialize self.results as input Results()
         self.results.cation_pi_bonds = None # Initialize self.results.cation_pi_bonds as None.
     
     def _get_pi_system_atoms(self):
-        """ Finds cation pi pairs.
-        
+        """
+        Generate a list, where each element is an atomgroup containing only atoms for a specific ring.
+        Currently, this function assumes that there are exactly six atoms in each ring and that atoms
+        in the same ring are selected consecutively by the select_atoms() MDAnalysis function.
+
         Returns
         -------
-        pi_system_atoms : AtomGroup
-            AtomGroup corresponding to all atoms in pi systems.
-            AtomGroups are ordered such that, if zipped, will
-            produce a list of lists of pi system atoms.
+        pi_rings : python list
+            List of AtomGroups, where each AtomGroup contains the 6 atoms in a particular ring.
         """
+        # Generate initial atom selection of pi system atoms based on pi_sel string.
         pi_atoms = self.u.select_atoms(self.pi_sel)
-        # Split pi_atoms into individual rings
-        # Assume that there are exactly six carbons in each ring.
+        # Split pi_atoms such that there is a unique AtomGroup for each individual ring.
+        # Must assume that there are exactly six carbons in each ring.
+
         c_per_ring = 6
         pi_rings=[] # Blank list becomes a list of atom groups each containing only atoms in an individual ring.
-        for i in range(c_per_ring,66,c_per_ring):
+        # The below for loop splits pi_atoms into AtomGroups of exactly 6 atoms.
+        for i in range(c_per_ring,len(pi_atoms)+c_per_ring,c_per_ring):
             pi_rings.append(pi_atoms[(i-c_per_ring):i])
         
         return pi_rings
     
     def _prepare(self):
+        # self.results.cation_pi_bonds = [[],[],[]]
         self.results.cation_pi_bonds = []
 
         # Select atom groups
@@ -104,20 +107,24 @@ class CationPiBondAnalysis(AnalysisBase):
         
         box = self._ts.dimensions
         
-        # find cation and pi barycenter within cutoff distance of one another
+        # find cation and pi system center (average of 6 positions) within cutoff distance of one another
         pi_rings = self._get_pi_system_atoms()
-        barycenters=np.zeros([len(pi_rings),3])
+        centers=np.zeros([len(pi_rings),3])
+        # Replace each row in the array 'centers' with a center position of one ring.
         for i in range(len(pi_rings)):
             avg_pos = np.array(pi_rings[i].positions.mean(axis=0))
-            barycenters[i]=avg_pos
+            centers[i]=avg_pos
+        # Find C and P within cutoff distance of one another
+        # min_cutoff = 1.0 as an attom cannot form a cation pi bond with itself.
         c_p_indices, c_p_distances = capped_distance(
             self._cations_sel.positions,
-            barycenters,
+            centers,
             max_cutoff=self.c_p_cutoff,
             min_cutoff=1.0,
             box=box,
             return_distances=True
         )
+
         if np.size(c_p_indices) == 0:
             warnings.warn(
                 "No cation pi bonds were found given c-p cutoff of "
@@ -128,10 +135,13 @@ class CationPiBondAnalysis(AnalysisBase):
         # Remove C-P pairs more than c_p_cutoff away from one another
         tmp_cations=self._cations_sel[c_p_indices.T[0]]
         tmp_pi_rings=[pi_rings[x] for x in c_p_indices.T[1]]
-        
+
         # Store data on number of cation pi bonds found at this frame
         self.results.cation_pi_bonds.append(len(tmp_cations)) # This is just the number of cation pi bonds.
-    
+        # self.results.cation_pi_bonds[0].extend(tmp_cations)
+        # self.results.cation_pi_bonds[1].extend(tmp_pi_rings)
+        # self.results.cation_pi_bonds[2].extend(c_p_distances)
+
     def _conclude(self):
         
         self.results.cation_pi_bonds = np.asarray(self.results.cation_pi_bonds).T
