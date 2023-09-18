@@ -1,4 +1,4 @@
-# mdanalysis_protein_cation_pi_bond_detection
+# Cation Pi Bond Detection with MDAnalysis for Proteins
 A custom class using MDAnalysis to detect cation pi bonds for a protein in solvent.
 
 ## List of Files and Descriptions
