@@ -95,9 +95,11 @@ class CationPiBondAnalysis(AnalysisBase):
         return pi_rings
     
     def _prepare(self):
-        # self.results.cation_pi_bonds = [[],[],[]]
-        self.results.cation_pi_bonds = []
+        # Initialize emtpy lists to store results.
+        self.results.cation_pi_bonds = [[],[],[],[]]
+        self.results.cation_pi_bond_counts = []
 
+        
         # Select atom groups
         self._pi_sel = self._get_pi_system_atoms()
         self._cations_sel = self.u.select_atoms(self.cations_sel,
@@ -115,7 +117,7 @@ class CationPiBondAnalysis(AnalysisBase):
             avg_pos = np.array(pi_rings[i].positions.mean(axis=0))
             centers[i]=avg_pos
         # Find C and P within cutoff distance of one another
-        # min_cutoff = 1.0 as an attom cannot form a cation pi bond with itself.
+        # min_cutoff = 1.0 as an atom cannot form a cation pi bond with itself.
         c_p_indices, c_p_distances = capped_distance(
             self._cations_sel.positions,
             centers,
@@ -136,12 +138,14 @@ class CationPiBondAnalysis(AnalysisBase):
         tmp_cations=self._cations_sel[c_p_indices.T[0]]
         tmp_pi_rings=[pi_rings[x] for x in c_p_indices.T[1]]
 
-        # Store data on number of cation pi bonds found at this frame
-        self.results.cation_pi_bonds.append(len(tmp_cations)) # This is just the number of cation pi bonds.
-        # self.results.cation_pi_bonds[0].extend(tmp_cations)
-        # self.results.cation_pi_bonds[1].extend(tmp_pi_rings)
-        # self.results.cation_pi_bonds[2].extend(c_p_distances)
+        # Set output to include frame, distance, cation resid, cation segid, pi resid, pi segid
+        self.results.cation_pi_bond_counts.append(len(tmp_cations))
+        
+        self.results.cation_pi_bonds[0].extend(np.full_like(tmp_cations, self._ts.frame))
+        self.results.cation_pi_bonds[1].extend(tmp_cations)
+        self.results.cation_pi_bonds[2].extend(tmp_pi_rings)
+        self.results.cation_pi_bonds[3].extend(c_p_distances)
 
     def _conclude(self):
         
-        self.results.cation_pi_bonds = np.asarray(self.results.cation_pi_bonds).T
+        self.results.cation_pi_bonds = np.asarray(self.results.cation_pi_bonds, dtype=object).T
