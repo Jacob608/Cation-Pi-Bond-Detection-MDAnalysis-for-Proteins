@@ -15,3 +15,7 @@ A custom class using MDAnalysis to detect cation pi bonds for a protein in solve
 2. [Activate the environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#activating-an-environment) and follow step 3 at [this link](https://saturncloud.io/blog/how-to-add-a-python-3-kernel-to-jupyter-ipython/) to install the IPython Kernel package.
 3. Register the envrionment as a kernel for use in Jupyter Notebook by following step 4 at [this link](https://saturncloud.io/blog/how-to-add-a-python-3-kernel-to-jupyter-ipython/).
 4. Open **cation_pi_analysis_demo.ipynb** using Jupyter Notebook and run the script.
+
+## Additional Information
+
+For details regarding distance cutoff and output of class 'CationPiBondAnalysis,' please see the comments in **cation_pi_analysis.py**.
