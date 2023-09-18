@@ -112,7 +112,7 @@ class CationPiBondAnalysis(AnalysisBase):
         # find cation and pi system center (average of 6 positions) within cutoff distance of one another
         pi_rings = self._get_pi_system_atoms()
         centers=np.zeros([len(pi_rings),3])
-        # Replace each row in the array 'centers' with a center position of one ring.
+        # Replace each row in the array 'centers' with the arithmetic mean position of all members of one ring (centroid).
         for i in range(len(pi_rings)):
             avg_pos = np.array(pi_rings[i].positions.mean(axis=0))
             centers[i]=avg_pos
@@ -138,13 +138,13 @@ class CationPiBondAnalysis(AnalysisBase):
         tmp_cations=self._cations_sel[c_p_indices.T[0]]
         tmp_pi_rings=[pi_rings[x] for x in c_p_indices.T[1]]
 
-        # Set output to include frame, distance, cation resid, cation segid, pi resid, pi segid
-        self.results.cation_pi_bond_counts.append(len(tmp_cations))
+        # Set output to include frame, atom selection containing cation atom, atom group containg the 6 members of the pi ring, distance between cation atom and the centroid of the pi ring
+        self.results.cation_pi_bond_counts.append(len(tmp_cations)) # Append the total number of cation pi bonds detected in this frame.
         
-        self.results.cation_pi_bonds[0].extend(np.full_like(tmp_cations, self._ts.frame))
-        self.results.cation_pi_bonds[1].extend(tmp_cations)
-        self.results.cation_pi_bonds[2].extend(tmp_pi_rings)
-        self.results.cation_pi_bonds[3].extend(c_p_distances)
+        self.results.cation_pi_bonds[0].extend(np.full_like(tmp_cations, self._ts.frame)) # Frame
+        self.results.cation_pi_bonds[1].extend(tmp_cations) # atom selection containing cation atom
+        self.results.cation_pi_bonds[2].extend(tmp_pi_rings) # atom group containg the 6 members of the pi ring
+        self.results.cation_pi_bonds[3].extend(c_p_distances) # distance between cation atom and the centroid of the pi ring
 
     def _conclude(self):
         
