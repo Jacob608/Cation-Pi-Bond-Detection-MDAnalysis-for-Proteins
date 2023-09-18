@@ -19,4 +19,4 @@ A custom class using MDAnalysis to detect cation pi bonds and pi pi bonds for a 
 
 ## Additional Information
 
-For details regarding distance cutoff and output format of class 'CationPiBondAnalysis,' please see the comments in **cation_pi_analysis.py** and **pi_pi_analysis.py** and follow along with comments in **cation_pi_analysis_demo.ipynb**.
+For details regarding distance cutoff and output format of class 'CationPiBondAnalysis,' please see the comments in **cation_pi_analysis.py** and **pi_pi_analysis.py** and follow along with instructions in **cation_pi_analysis_demo.ipynb**.
