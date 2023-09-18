@@ -7,25 +7,7 @@
 # Northwestern University Department of Mechanical Engineering
 # Sinan Keten's Computational Nanodynamics Research Laboratory
 
-# 9/6/2023
-
-
-
-
-# import numpy as np
-# import math
-# import os
-# import glob
-# import pandas as pd
-# import MDAnalysis as mda
-# import argparse
-# import matplotlib.pyplot as plt
-# import sys
-# from MDAnalysis.analysis.base import (AnalysisBase, AnalysisFromFunction, analysis_class)
-# from MDAnalysis.analysis import distances
-# from statistics import mean
-
-
+# 9/18/2023
 
 from MDAnalysis.analysis.base import AnalysisBase, Results
 from MDAnalysis.lib.distances import capped_distance, calc_angles
@@ -51,7 +33,7 @@ class PiPiBondAnalysis(AnalysisBase):
         """Set up atom selections and geometric criteria for finding cation pi
         bonds in a Universe.
         
-        P pi bond selection with 'pi_sel' may be achieved
+        Pi-pi bond selection with 'pi_sel' may be achieved
         with either a *resname*, atom *name* combination, or when those are absent, with atom *type* selections.
         
         Parameters:
@@ -62,8 +44,6 @@ class PiPiBondAnalysis(AnalysisBase):
             Selection string for the atoms participating in the quadropole (pi-system).
         p_p_cutoff : float
             Distance cutoff used for finding pi pi pairs.
-        plane_p_p_angle_cutoff : float
-            Aromatic plane-barycenter-cation angle cutoff for cation pi pairs in degrees.
         """
         
         self.u = universe # Initialize self.u as the input universe. 
@@ -80,12 +60,12 @@ class PiPiBondAnalysis(AnalysisBase):
             warnings.warn(msg.format('pi_sel'))
         
         self.p_p_cutoff = p_p_cutoff # Initialize self.p_p_cutoff as input p_p_cutoff
-        self.update_selections = update_selections # Initialize self.update_selections as update_selections
+#         self.update_selections = update_selections # Initialize self.update_selections as update_selections
         self.results = Results() # Initialize self.results as Results()
         self.results.pi_pi_bonds = None # Initialize self.results.pi_pi_bonds as None.
     
     def _get_pi_system_atoms(self):
-        """ Finds cation pi pairs.
+        """ Finds pi pi pairs.
         
         Returns
         -------
@@ -97,15 +77,18 @@ class PiPiBondAnalysis(AnalysisBase):
         pi_atoms = self.u.select_atoms(self.pi_sel)
         # Split pi_atoms into individual rings
         # Assume that there are exactly six carbons in each ring.
+        
         c_per_ring = 6
         pi_rings=[] # Blank list becomes a list of atom groups each containing only atoms in an individual ring.
+        # The below for loop splits pi_atoms into AtomGroups of exactly 6 atoms.
         for i in range(c_per_ring,66,c_per_ring):
             pi_rings.append(pi_atoms[(i-c_per_ring):i])
         
         return pi_rings
     
     def _prepare(self):
-        self.results.pi_pi_bonds = []
+        self.results.pi_pi_bonds = [[],[],[],[]]
+        self.results.pi_pi_bond_counts = []
 
         # Select atom groups
         self._pi_sel = self._get_pi_system_atoms()
@@ -114,21 +97,30 @@ class PiPiBondAnalysis(AnalysisBase):
         
         box = self._ts.dimensions
         
-        # find cation and pi barycenter within cutoff distance of one another
+        # find cation and pi system center (average of 6 positions) within cutoff distance of one another.
         pi_rings = self._get_pi_system_atoms()
-        barycenters=np.zeros([len(pi_rings),3])
+        centers=np.zeros([len(pi_rings),3])
         for i in range(len(pi_rings)):
             avg_pos = np.array(pi_rings[i].positions.mean(axis=0))
-            barycenters[i]=avg_pos
+            centers[i]=avg_pos
+        # Find rings that are within a certain cutoff distance of one another.
         # capped_distance currently returns duplicates of every pi-pi pair.
+        # min_cutoff = 1.0 as an atom cannot form a pi pi bond with itself.
         p_p_indices, p_p_distances = capped_distance(
-            barycenters,
-            barycenters,
+            centers,
+            centers,
             max_cutoff=self.p_p_cutoff,
             min_cutoff=1.0,
             box=box,
             return_distances=True
         )
+        # Remove duplicate index pairs.
+        # Get indices of duplicate pairs.
+        sorted_arr = np.sort(p_p_indices, axis=1)
+        p_p_indices, unique_indices = np.unique(sorted_arr, axis=0, return_index=True)
+        # Remove duplicate distances
+        p_p_distances=[p_p_distances[x] for x in unique_indices.T]
+        
         if np.size(p_p_indices) == 0:
             warnings.warn(
                 "No pi pi bonds were found given p-p cutoff of "
@@ -136,16 +128,17 @@ class PiPiBondAnalysis(AnalysisBase):
                 f"Pi System, {self.pi_sel} at step {self._ts}."
             )
         
-        # Remove P-P pairs more than p_p_cutoff away from one another
-        tmp_pi_rings=[pi_rings[x] for x in p_p_indices.T[1]]
+        # Remove P-P pairs more than p_p_cutoff away from one another.
+        tmp_pi_rings_1=[pi_rings[x] for x in p_p_indices.T[0]]
+        tmp_pi_rings_2=[pi_rings[x] for x in p_p_indices.T[1]]
         
-        # Store data on number of cation pi bonds found at this frame
-        self.results.pi_pi_bonds.append(len(tmp_pi_rings)/2) # This is just the number of cation pi bonds.
-    
+        # Set output to include frame, atom group containing 6 members of the first pi ring, atom group containing 6 members of the second pi ring, distance between the centroid of the two pi rings.
+        self.results.pi_pi_bond_counts.append(len(tmp_pi_rings_1)) # Append the total number of pi pi bonds detected in this frame.
+        self.results.pi_pi_bonds[0].extend(np.full_like(p_p_distances, self._ts.frame)) # frame
+        self.results.pi_pi_bonds[1].extend(tmp_pi_rings_1) # atom group containing 6 members of the first pi ring.
+        self.results.pi_pi_bonds[2].extend(tmp_pi_rings_2) # atom group containing 6 members of the second pi ring.
+        self.results.pi_pi_bonds[3].extend(p_p_distances) # distance between the centroids the pi rings.
+                                           
     def _conclude(self):
         
-        self.results.pi_pi_bonds = np.asarray(self.results.pi_pi_bonds).T
-
-
-
-
+        self.results.pi_pi_bonds = np.asarray(self.results.pi_pi_bonds, dtype=object).T
